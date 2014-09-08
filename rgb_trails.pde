@@ -5,6 +5,8 @@ import SimpleOpenNI.*;
 import processing.opengl.*;
 import blobDetection.*;
 
+import java.awt.Rectangle;
+
 // declare SimpleOpenNI object
 SimpleOpenNI kinect;
 
@@ -21,9 +23,15 @@ int kinectHeight = 480;
 // to center and rescale from 640x480 to higher custom resolutions
 float reScale;
 
+// last silhouettes of somone
+PolygonBlob trail1, trail2;
+
+// for motion detection
+Rectangle previousBounds;
+
 void setup() {
-  // same as Kinect dimensions
-  size(kinectWidth, kinectHeight, P2D);
+  // 720P
+  size(1280, 720, P2D);
   // initialize SimpleOpenNI object
   kinect = new SimpleOpenNI(this);
   if (!kinect.enableDepth()) {
@@ -48,14 +56,20 @@ void setup() {
   // initialize blob detection object to the blob image dimensions
   theBlobDetection = new BlobDetection(blobs.width, blobs.height);
   theBlobDetection.setThreshold(0.1);
+  
+  // flag to enable trails
+  showTrails = false;
 }
 
 void draw() {
+  // getto frame counting - wrap at 10k
+  frame = (frame + 1) % 10000;
+  
   background(0);
   
   // center and reScale from Kinect to custom dimensions
-  //translate(0, (height-kinectHeight*reScale)/2);
-  //scale(reScale);
+  translate(0, (height-kinectHeight*reScale)/2);
+  scale(reScale);
   
   // update the SimpleOpenNI object
   kinect.update();
@@ -85,15 +99,49 @@ void draw() {
   // create the polygon from the blobs (custom functionality, see class)
   poly.createPolygon();
   
+  // detect motion
+  int xtranslation=0;
+  if(previousBounds != null) {
+    xtranslation = previousBounds.x - poly.getBounds().x;
+  }
+  trail2=trail1;
+  trail1=poly.clone();
+  previousBounds = poly.getBounds();
+  
   // display the image
   PShape person = createShape();
   person.beginShape();
-  person.fill(255, 0, 0);
+  person.fill(#e85d48);
   for (int i = 0; i < poly.npoints; i++) {
     person.vertex(poly.xpoints[i], poly.ypoints[i]);
   }
   person.endShape(CLOSE);
-  
   shape(person, 0, 0);
-  //image(blobs, 0, 0);
+  
+  // display trails if needed, not every frame for performance
+  if(xtranslation == 0) showTrails = false;
+  else if(Math.abs(xtranslation) > 3 || showTrails) {
+    int max=50;
+    int trailDistance = Math.min(xtranslation, width/2);
+    showTrails = true;
+    
+    PShape trail1Shape = createShape();
+    trail1Shape.beginShape();
+    trail1Shape.fill(#64c467);
+    for (int i = 0; i < trail1.npoints; i++) {
+      trail1Shape.vertex(trail1.xpoints[i], trail1.ypoints[i]);
+    }
+    trail1Shape.endShape(CLOSE);
+    shape(trail1Shape, 0, 0);
+    
+    PShape trail2Shape = createShape();
+    trail2Shape.beginShape();
+    trail2Shape.fill(#64c467);
+    for (int i = 0; i < trail2.npoints; i++) {
+      trail2Shape.vertex(trail2.xpoints[i], trail2.ypoints[i]);
+    }
+    trail2Shape.endShape(CLOSE);
+    shape(trail2Shape, 0, 0);
+  }
 }
+
